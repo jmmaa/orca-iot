@@ -22,7 +22,7 @@ The project uses [arduino-cli](https://arduino.github.io/arduino-cli/0.29/instal
 
 To run the project
 
-```
+```cmd
 ./run
 ```
 
@@ -30,12 +30,12 @@ To run the project
 
 uploading the sketch directly to your arduino
 
-```
+```cmd
 arduino-cli compile main --profile orca -u -p <port name>
 ```
 
 If you only need the build files
 
-```
+```cmd
 arduino-cli compile main --profile orca --output-dir=./build
 ```
