@@ -7,10 +7,10 @@ O.R.C.A. or Ocean Risk Intensity Classification and Analysis, is an IoT-based ea
 ### Peripherals
 
 - Arduino Uno R3
-- JSNSR04T
-- DHT11
-- GY-BMP280 3.3v
-- Infrared Obstacle Avoidance Sensor
+- JSNSR04T Module
+- DHT11 Module
+- GY-BMP280 3.3v Module
+- Hall Effect Sensor Module
 
 ## Download
 
