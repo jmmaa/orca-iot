@@ -1,0 +1,10 @@
+profiles:
+  orca:
+    fqbn: arduino:avr:uno
+    platforms:
+      - platform: arduino:avr (1.8.6)
+    libraries:
+      - LiquidCrystal I2C (1.1.2)
+      - I2C-Sensor-Lib iLib (0.8.2)
+      - DHT sensor library (1.4.4)
+      - Adafruit Unified Sensor (1.1.7)

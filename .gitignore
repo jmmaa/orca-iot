@@ -1,0 +1,11 @@
+/target
+
+
+
+# arduino
+/build
+/scanner
+
+# dev
+.vscode
+.legacy
