@@ -65,7 +65,7 @@ pub fn readings(input: &str) -> IResult<&str, Readings, nom::error::Error<&str>>
         reading("pressure"),
         reading("temperature"),
         reading("humidity"),
-        reading("waterheight"),
+        reading("waterlevel"),
     )));
 
     return parse(input);

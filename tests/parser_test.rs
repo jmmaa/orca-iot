@@ -107,7 +107,7 @@ fn test_readings_parser() {
         humidity:
             66.0
 
-        waterheight:
+        waterlevel:
             96.68
         ",
     );
@@ -121,7 +121,7 @@ fn test_readings_parser() {
                 ("pressure", 100384.0),
                 ("temperature", 34.97),
                 ("humidity", 66.0),
-                ("waterheight", 96.68)
+                ("waterlevel", 96.68)
             )
         ))
     )

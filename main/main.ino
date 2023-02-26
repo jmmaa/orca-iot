@@ -81,6 +81,11 @@ void setup()
 
     // IR Obstacle Avoidance Sensor
     pinMode(INPUT, IROA_PIN);
+
+
+
+    // init
+    updateValues();
 }
 
 void loop() {
@@ -107,78 +112,8 @@ void loop() {
     
     if (millis() - previousSerialMillis >= serialInterval) {
 
+        updateValues();
 
-        // IROA
-        float circumference = (2 * 3.1415926535 * 0.08)/3 ;
-        float factor = 2;
-        float signalsPerSecond = signals / serialMultiplier;
-        float windspeed = signalsPerSecond * circumference * factor;
-
-        signals = 0; //reset
-
-        // BMP280
-
-        bmp280.awaitMeasurement();
-        bmp280.getTemperature(temperature);
-        bmp280.getPressure(pascal);
-        bmp280.triggerMeasurement();
-
-        // DHT11
-        humidity = dht.readHumidity();
-
-        // JSNSR04T
-        digitalWrite(JSNSR04T_TRIG_PIN, LOW);
-        delayMicroseconds(3);
-        digitalWrite(JSNSR04T_TRIG_PIN, HIGH);
-        delayMicroseconds(10);
-        digitalWrite(JSNSR04T_TRIG_PIN, LOW);
-
-        duration = pulseIn(JSNSR04T_ECHO_PIN, HIGH);
-        distance = duration*0.034/2;
-
-        // Output
-
-        Serial.print("windspeed:");
-        Serial.print(windspeed);
-        Serial.print("pressure:");
-        Serial.print(pascal);
-        Serial.print("temperature:");
-        Serial.print(temperature);
-        Serial.print("humidity:");
-        Serial.print(humidity);
-        Serial.print("waterheight:");
-        Serial.println(distance);
-
-
-        // lcd update
-        topStr = "                ";
-
-        topStr += "temperature: ";
-        topStr += String(temperature);
-        topStr += " ";
-
-        topStr += "pressure: ";
-        topStr += String(pascal);
-        topStr += " ";
-
-        botStr = "                ";
-
-        botStr += "wind: ";
-        botStr += String(windspeed);
-        botStr += " ";
-
-
-        botStr += "water: ";
-        botStr += String(distance);
-        botStr += " ";
-
-
-        botStr += "humidity: ";
-        botStr += String(humidity);
-
-        
-    
-        
         previousSerialMillis += serialInterval;
     }
 
@@ -210,5 +145,62 @@ void loop() {
 
         previousLCDMillis += LCDInterval;
     }
+    
+}
+
+
+void updateValues() {
+    // Anemometer
+    
+    float circumference = (2 * 3.1415926535 * 0.08);
+    float factor = 2;
+    float signalsPerInterval = signals / serialMultiplier;
+    float windspeed = signalsPerInterval * circumference ;
+    signals = 0; //reset
+
+    // BMP280
+    bmp280.awaitMeasurement();
+    bmp280.getTemperature(temperature);
+    bmp280.getPressure(pascal);
+    bmp280.triggerMeasurement();
+    // DHT11
+    humidity = dht.readHumidity();
+    // JSNSR04T
+    digitalWrite(JSNSR04T_TRIG_PIN, LOW);
+    delayMicroseconds(3);
+    digitalWrite(JSNSR04T_TRIG_PIN, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(JSNSR04T_TRIG_PIN, LOW);
+    duration = pulseIn(JSNSR04T_ECHO_PIN, HIGH);
+    distance = duration*0.034/2;
+    // Output
+    Serial.print("windspeed:");
+    Serial.print(windspeed);
+    Serial.print("pressure:");
+    Serial.print(pascal);
+    Serial.print("temperature:");
+    Serial.print(temperature);
+    Serial.print("humidity:");
+    Serial.print(humidity);
+    Serial.print("waterlevel:");
+    Serial.print(distance);
+    Serial.print("\n"); // marker
+    // lcd update
+    topStr = "                ";
+    topStr += "temperature: ";
+    topStr += String(temperature);
+    topStr += " ";
+    topStr += "pressure: ";
+    topStr += String(pascal);
+    topStr += " ";
+    botStr = "                ";
+    botStr += "wind: ";
+    botStr += String(windspeed);
+    botStr += " ";
+    botStr += "water: ";
+    botStr += String(distance);
+    botStr += " ";
+    botStr += "humidity: ";
+    botStr += String(humidity);
     
 }
