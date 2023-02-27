@@ -101,16 +101,16 @@ pub fn listen(port: &mut Box<dyn serialport::SerialPort>) {
                                 Ok(parsed) => {
                                     // SERVER COMM LOGIC HERE
 
-                                    // let data = &parsed.to_hashmap();
-                                    // let req = client
-                                    //     .post("https://web-production-e3f6.up.railway.app/post")
-                                    //     .json(data)
-                                    //     .send();
+                                    let data = &parsed.to_hashmap();
+                                    let req = client
+                                        .post("https://web-production-e3f6.up.railway.app/post")
+                                        .json(data)
+                                        .send();
 
-                                    // match req {
-                                    //     Ok(res) => println!("success POST: {:?}", res),
-                                    //     Err(e) => eprintln!("error POST: {e}"),
-                                    // }
+                                    match req {
+                                        Ok(res) => println!("success POST: {:?}", res),
+                                        Err(e) => eprintln!("error POST: {e}"),
+                                    }
 
                                     println!("{:?}", parsed.to_hashmap());
                                 }

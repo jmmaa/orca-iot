@@ -10,7 +10,7 @@
 
 #define DHT_TYPE            DHT11
 #define DHT11_PIN           4
-#define IROA_PIN            5
+#define ANEMOMETER_PIN      5
 #define JSNSR04T_ECHO_PIN   6
 #define JSNSR04T_TRIG_PIN   7
 
@@ -28,12 +28,17 @@ unsigned long previousSerialMillis = 0;
 unsigned long previousLCDMillis = 0;
 
 // lcd
-LiquidCrystal_I2C lcd(0x27,16,2);
+LiquidCrystal_I2C lcd(0x27,16, 1);
 int position = 0;
 int topPos = 0;
 int botPos = 0;
 String topStr;
 String botStr;
+
+// lcd new
+String outputMessage = "                ";
+int pos = 0;
+
 
 // DHT11
 DHT dht(DHT11_PIN, DHT_TYPE);
@@ -49,7 +54,7 @@ float temperature, pascal;
 long duration;
 float distance;
 
-// IR Obstacle Avoidance
+// Anemometer
 float signals = 0;
 bool hovered = false;
 
@@ -79,13 +84,13 @@ void setup()
     pinMode(OUTPUT, JSNSR04T_TRIG_PIN);
     pinMode(INPUT, JSNSR04T_ECHO_PIN);
 
-    // IR Obstacle Avoidance Sensor
-    pinMode(INPUT, IROA_PIN);
-
+    // Anemometer
+    pinMode(INPUT, ANEMOMETER_PIN);
 
 
     // init
     updateValues();
+
 }
 
 void loop() {
@@ -93,8 +98,8 @@ void loop() {
     
     int currentMillis  = millis();
 
-    // IR Obstacle Avoidance Sensor
-    int status = digitalRead(IROA_PIN);
+    // ANEMOMETER
+    int status = digitalRead(ANEMOMETER_PIN);
 
 
     if (status == 0) {
@@ -109,6 +114,8 @@ void loop() {
         hovered = false;
     }
 
+    //
+
     
     if (millis() - previousSerialMillis >= serialInterval) {
 
@@ -120,28 +127,18 @@ void loop() {
     // LCD
 
     if (millis() - previousLCDMillis >= LCDInterval) {
-
-    
-        lcd.setCursor(0, 0);
-        lcd.print(topStr);
-        lcd.setCursor(0, 1);
-        lcd.print(botStr);
-
-
-        if (topPos < topStr.length()) {
-            lcd.scrollDisplayLeft();
-            topPos++;
-        } else {
-            topPos = 0;
-        }
         
-        if (botPos < botStr.length()) {
-            lcd.scrollDisplayLeft();
-            botPos++;
-        } else {
-            botPos = 0;
-        }
+        
+        lcd.clear();
+        lcd.setCursor(0, 0);
 
+        lcd.print(outputMessage.substring(pos, pos+16));
+
+        if (pos < outputMessage.length()) {
+            pos++;
+        } else {
+            pos = 0;
+        }
 
         previousLCDMillis += LCDInterval;
     }
@@ -149,22 +146,31 @@ void loop() {
 }
 
 
+
+
 void updateValues() {
+
+
     // Anemometer
-    
     float circumference = (2 * 3.1415926535 * 0.08);
-    float factor = 2;
+    float arc = (circumference * 120) / 360;
+    // float factor = 2;
     float signalsPerInterval = signals / serialMultiplier;
-    float windspeed = signalsPerInterval * circumference ;
+    float windspeed = signalsPerInterval * arc;
     signals = 0; //reset
+
 
     // BMP280
     bmp280.awaitMeasurement();
     bmp280.getTemperature(temperature);
     bmp280.getPressure(pascal);
     bmp280.triggerMeasurement();
+
+
     // DHT11
     humidity = dht.readHumidity();
+
+
     // JSNSR04T
     digitalWrite(JSNSR04T_TRIG_PIN, LOW);
     delayMicroseconds(3);
@@ -173,7 +179,8 @@ void updateValues() {
     digitalWrite(JSNSR04T_TRIG_PIN, LOW);
     duration = pulseIn(JSNSR04T_ECHO_PIN, HIGH);
     distance = duration*0.034/2;
-    // Output
+
+    // // Output
     Serial.print("windspeed:");
     Serial.print(windspeed);
     Serial.print("pressure:");
@@ -185,22 +192,23 @@ void updateValues() {
     Serial.print("waterlevel:");
     Serial.print(distance);
     Serial.print("\n"); // marker
+
+
     // lcd update
-    topStr = "                ";
-    topStr += "temperature: ";
-    topStr += String(temperature);
-    topStr += " ";
-    topStr += "pressure: ";
-    topStr += String(pascal);
-    topStr += " ";
-    botStr = "                ";
-    botStr += "wind: ";
-    botStr += String(windspeed);
-    botStr += " ";
-    botStr += "water: ";
-    botStr += String(distance);
-    botStr += " ";
-    botStr += "humidity: ";
-    botStr += String(humidity);
-    
+    outputMessage = "                ";
+    outputMessage += "temperature: ";
+    outputMessage += String(temperature);
+    outputMessage += " ";
+    outputMessage += "pressure: ";
+    outputMessage += String(pascal);
+    outputMessage += " ";
+    outputMessage += "wind speed: ";
+    outputMessage += String(windspeed);
+    outputMessage += " ";
+    outputMessage += "water level: ";
+    outputMessage += String(distance);
+    outputMessage += " ";
+    outputMessage += "humidity: ";
+    outputMessage += String(humidity);
+    outputMessage += " "; 
 }
