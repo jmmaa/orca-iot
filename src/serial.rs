@@ -1,11 +1,15 @@
+use csv::Writer;
 use serialport;
-use serialport::Result;
 
-use reqwest;
+use csv;
+
+use serde;
 
 use std::env::consts::OS;
+use std::error::Error;
+use std::fs;
+use std::fs::File;
 use std::str;
-use std::string::FromUtf8Error;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -15,7 +19,7 @@ pub fn open_port(
     env: &str,
     baud_rate: u32,
     timeout: u64,
-) -> Result<Box<dyn serialport::SerialPort>> {
+) -> serialport::Result<Box<dyn serialport::SerialPort>> {
     let path = match env {
         "windows" => "COM3",
         "linux" => "/dev/ttyACM0",
@@ -25,112 +29,125 @@ pub fn open_port(
         }
     };
 
-    return serialport::new(path, baud_rate)
+    serialport::new(path, baud_rate)
         .timeout(Duration::from_millis(timeout))
-        .open();
+        .open()
 }
 
-pub fn read_bytes(
-    port: &mut Box<dyn serialport::SerialPort>,
-    buf: &mut Vec<u8>,
-) -> Result<Vec<u8>> {
-    return match port.read(buf) {
-        Ok(_) => Ok(buf.to_owned()),
-        Err(e) => Err(serialport::Error::from(e)),
-    };
-}
-
-pub fn filter_null_bytes(byte_arr: Vec<u8>) -> Vec<u8> {
-    return byte_arr
-        .into_iter()
-        .filter(|byte| byte.to_owned() != 0)
-        .collect();
-}
-
-pub fn split_byte_array(buf: &[u8], t: char) -> (Vec<&u8>, Vec<&u8>) {
+pub fn split_byte_array(buf: &[u8], t: char) -> (&[u8], &[u8]) {
     let term: u8 = t as u8;
 
-    let mut terminated = false;
-    let mut resolving: Vec<&u8> = Vec::new();
-    let mut remaining: Vec<&u8> = Vec::new();
-
-    for b in buf.iter() {
-        let _byte = b;
-
-        if !terminated {
-            if *_byte != term {
-                resolving.push(_byte);
-            } else {
-                remaining.push(_byte);
-
-                terminated = true;
-            }
-        } else {
-            remaining.push(_byte);
+    // check for any markers
+    for (i, b) in buf.iter().enumerate() {
+        if *b == term {
+            return (&buf[..i], &buf[i..]);
         }
     }
 
-    return (resolving, remaining);
+    return (buf, &[]); // return the same
 }
 
-pub fn resolve(bytes: Vec<u8>) -> std::result::Result<String, FromUtf8Error> {
-    let filtered = filter_null_bytes(bytes.to_owned());
-    return String::from_utf8(filtered);
+#[derive(serde::Serialize)]
+pub struct Reading {
+    temperature: f32,
+    pressure: f32,
+    windspeed: f32,
+    waterlevel: f32,
+    humidity: f32,
 }
 
-pub fn listen(port: &mut Box<dyn serialport::SerialPort>) {
+fn create_csv_writer(p: &str) -> Result<Writer<File>, Box<dyn Error>> {
+    match fs::metadata(p) {
+        Ok(metadata) => {
+            if metadata.is_file() {
+                println!("found existing {p}");
+
+                let f = fs::OpenOptions::new().append(true).open(p);
+                match f {
+                    Ok(file) => {
+                        return Ok(csv::WriterBuilder::new()
+                            .has_headers(false)
+                            .from_writer(file))
+                    }
+                    Err(e) => return Err(Box::new(e)),
+                }
+            } else {
+                println!("found {p} but not a valid comma separated file!");
+                match csv::Writer::from_path(p) {
+                    Ok(wtr) => return Ok(wtr),
+                    Err(e) => return Err(Box::new(e)),
+                };
+            }
+        }
+        Err(_) => match csv::Writer::from_path(p) {
+            Ok(wtr) => return Ok(wtr),
+            Err(e) => return Err(Box::new(e)),
+        },
+    }
+}
+
+pub fn listen(port: &mut Box<dyn serialport::SerialPort>) -> Result<(), Box<dyn Error>> {
     let mut bytes_arr: Vec<u8> = Vec::new();
 
     let mut buf = [0; 32];
 
-    let client = reqwest::blocking::Client::new();
+    let path = "./readings.csv";
 
-    loop {
-        match port.read(&mut buf) {
-            Ok(num_bytes) => {
-                if num_bytes > 0 {
-                    let bytes = &buf[0..num_bytes];
+    match create_csv_writer(path) {
+        Ok(mut wtr) => {
+            loop {
+                match port.read(&mut buf) {
+                    Ok(num_bytes) => {
+                        if num_bytes > 0 {
+                            let bytes = &buf[..num_bytes];
 
-                    let (resolving, remaining) = split_byte_array(bytes, '\n');
+                            let (to_resolve, to_append) = split_byte_array(bytes, '\n');
+                            bytes_arr.extend(to_resolve);
 
-                    bytes_arr.extend(resolving);
+                            if to_append.len() > 0 {
+                                match str::from_utf8(&bytes_arr) {
+                                    Ok(string) => match parse(string) {
+                                        Ok(parsed) => {
+                                            // SAVE TO CSV HERE
 
-                    if remaining.len() > 0 {
-                        match resolve(bytes_arr) {
-                            Ok(string) => match parse(&string) {
-                                Ok(parsed) => {
-                                    // SERVER COMM LOGIC HERE
+                                            println!("{:?}", parsed.to_tuple());
 
-                                    let data = &parsed.to_hashmap();
-                                    let req = client
-                                        .post("https://web-production-e3f6.up.railway.app/post")
-                                        .json(data)
-                                        .send();
+                                            let record = parsed.to_hashmap();
 
-                                    match req {
-                                        Ok(res) => println!("success POST: {:?}", res),
-                                        Err(e) => eprintln!("error POST: {e}"),
-                                    }
+                                            let res = wtr.serialize(Reading {
+                                                temperature: record["temperature"],
+                                                pressure: record["pressure"],
+                                                windspeed: record["windspeed"],
+                                                waterlevel: record["waterlevel"],
+                                                humidity: record["humidity"],
+                                            });
 
-                                    println!("{:?}", parsed.to_hashmap());
+                                            match res {
+                                                Ok(()) => println!("serialize success"),
+                                                Err(e) => eprintln!("serialize failed: {e}"),
+                                            };
+
+                                            match wtr.flush() {
+                                                Ok(()) => println!("write success"),
+                                                Err(e) => eprintln!("write failed: {e}"),
+                                            }
+                                        }
+
+                                        Err(e) => eprintln!("{e}"),
+                                    },
+                                    Err(e) => eprintln!("{e}"),
                                 }
-                                Err(e) => eprintln!("failed to parse data: {}", e),
-                            },
-                            Err(e) => {
-                                eprintln!("failed to convert data to string: {}", e)
+
+                                bytes_arr.clear();
+                                bytes_arr.extend(to_append);
                             }
                         }
-
-                        bytes_arr = Vec::new();
-                        bytes_arr.extend(remaining)
                     }
-                }
+                    Err(e) => return Err(Box::new(e)),
+                };
             }
-            Err(e) => {
-                eprintln!("failed to read: {}", e);
-                break;
-            }
-        };
+        }
+        Err(e) => return Err(e),
     }
 }
 
@@ -139,7 +156,7 @@ pub fn init(baud_rate: u32, timeout: u64) {
         match open_port(OS, baud_rate, timeout) {
             Ok(mut port) => {
                 println!("connected!");
-                listen(&mut port);
+                listen(&mut port).unwrap();
             }
             Err(e) => {
                 eprintln!("failed to open port: {:?}", e.description);

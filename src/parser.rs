@@ -61,11 +61,11 @@ pub type Readings<'a> = (
 
 pub fn readings(input: &str) -> IResult<&str, Readings, nom::error::Error<&str>> {
     let mut parse = complete(tuple((
-        reading("windspeed"),
-        reading("pressure"),
         reading("temperature"),
-        reading("humidity"),
+        reading("pressure"),
+        reading("windspeed"),
         reading("waterlevel"),
+        reading("humidity"),
     )));
 
     return parse(input);
@@ -98,13 +98,13 @@ impl<'a> ParsedData<'a> {
         let pressure = self.readings.1;
         let temperature = self.readings.2;
         let humidity = self.readings.3;
-        let waterheight = self.readings.4;
+        let waterlevel = self.readings.4;
 
         hm.insert(windspeed.0, windspeed.1);
         hm.insert(pressure.0, pressure.1);
         hm.insert(temperature.0, temperature.1);
         hm.insert(humidity.0, humidity.1);
-        hm.insert(waterheight.0, waterheight.1);
+        hm.insert(waterlevel.0, waterlevel.1);
 
         return hm;
     }

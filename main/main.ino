@@ -16,37 +16,27 @@
 
 
 // timing
-float timeMultiplier = 1000;
-
-float serialMultiplier = 5;
-float serialInterval = serialMultiplier * timeMultiplier;
-
-float LCDMultiplier = 0.3;
-float LCDInterval = LCDMultiplier * timeMultiplier;
-
-unsigned long previousSerialMillis = 0;
+float serialInterval = 5; // s // change this  for timing serial prints
+float updateInterval = 1; // s // change this for timing value updates
+float LCDInterval = 300; // ms // change this for LCD interval
+unsigned long previousSerialSeconds = 0;
+unsigned long previousUpdateSeconds = 0;
 unsigned long previousLCDMillis = 0;
 
 // lcd
 LiquidCrystal_I2C lcd(0x27,16, 1);
-int position = 0;
-int topPos = 0;
-int botPos = 0;
-String topStr;
-String botStr;
-
-// lcd new
 String outputMessage = "                ";
 int pos = 0;
 
 
 // DHT11
 DHT dht(DHT11_PIN, DHT_TYPE);
-int humidity;
+float humidity;
 
 // BMP280
 BMP280 bmp280;
-float temperature, pascal;
+float temperature;
+float pascal;
 
 
 
@@ -55,6 +45,7 @@ long duration;
 float distance;
 
 // Anemometer
+float windspeed;
 float signals = 0;
 bool hovered = false;
 
@@ -95,8 +86,6 @@ void setup()
 
 void loop() {
 
-    
-    int currentMillis  = millis();
 
     // ANEMOMETER
     int status = digitalRead(ANEMOMETER_PIN);
@@ -111,21 +100,30 @@ void loop() {
         }
 
     } else {
+
         hovered = false;
     }
 
-    //
-
+    // update values
     
-    if (millis() - previousSerialMillis >= serialInterval) {
+    if ((millis()/1000) - previousUpdateSeconds >= updateInterval) {
 
         updateValues();
 
-        previousSerialMillis += serialInterval;
+        previousUpdateSeconds += updateInterval;
     }
 
-    // LCD
+    // send serial values
 
+    if ((millis()/1000) - previousSerialSeconds >= serialInterval) {
+
+        printSerialValues();
+        
+        previousSerialSeconds += serialInterval;
+    }
+
+
+    // LCD
     if (millis() - previousLCDMillis >= LCDInterval) {
         
         
@@ -146,6 +144,26 @@ void loop() {
 }
 
 
+void printSerialValues() {
+
+        // // Output
+    Serial.print("temperature:");
+    Serial.print(temperature);
+
+    Serial.print("pressure:");
+    Serial.print(pascal);
+
+    Serial.print("windspeed:");
+    Serial.print(windspeed);
+
+    Serial.print("waterlevel:");
+    Serial.print(distance);
+
+    Serial.print("humidity:");
+    Serial.print(humidity);
+    
+    Serial.print("\n"); // marker
+}
 
 
 void updateValues() {
@@ -155,8 +173,7 @@ void updateValues() {
     float circumference = (2 * 3.1415926535 * 0.08);
     float arc = (circumference * 120) / 360;
     // float factor = 2;
-    float signalsPerInterval = signals / serialMultiplier;
-    float windspeed = signalsPerInterval * arc;
+    windspeed = (signals / serialInterval) * arc;
     signals = 0; //reset
 
 
@@ -180,18 +197,6 @@ void updateValues() {
     duration = pulseIn(JSNSR04T_ECHO_PIN, HIGH);
     distance = duration*0.034/2;
 
-    // // Output
-    Serial.print("windspeed:");
-    Serial.print(windspeed);
-    Serial.print("pressure:");
-    Serial.print(pascal);
-    Serial.print("temperature:");
-    Serial.print(temperature);
-    Serial.print("humidity:");
-    Serial.print(humidity);
-    Serial.print("waterlevel:");
-    Serial.print(distance);
-    Serial.print("\n"); // marker
 
 
     // lcd update
