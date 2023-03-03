@@ -1,7 +1,7 @@
-use csv::Writer;
 use serialport;
 
 use csv;
+use csv::Writer;
 
 use serde;
 
@@ -13,9 +13,9 @@ use std::str;
 use std::thread::sleep;
 use std::time::Duration;
 
-use crate::parser::parse;
+use crate::parser::{parse, ParsedData};
 
-pub fn open_port(
+fn open_port(
     env: &str,
     baud_rate: u32,
     timeout: u64,
@@ -34,21 +34,8 @@ pub fn open_port(
         .open()
 }
 
-pub fn split_byte_array(buf: &[u8], t: char) -> (&[u8], &[u8]) {
-    let term: u8 = t as u8;
-
-    // check for any markers
-    for (i, b) in buf.iter().enumerate() {
-        if *b == term {
-            return (&buf[..i], &buf[i..]);
-        }
-    }
-
-    return (buf, &[]); // return the same
-}
-
 #[derive(serde::Serialize)]
-pub struct Reading {
+struct Reading {
     temperature: f32,
     pressure: f32,
     windspeed: f32,
@@ -60,7 +47,7 @@ fn create_csv_writer(p: &str) -> Result<Writer<File>, Box<dyn Error>> {
     match fs::metadata(p) {
         Ok(metadata) => {
             if metadata.is_file() {
-                println!("found existing {p}");
+                // if file, just append data
 
                 let f = fs::OpenOptions::new().append(true).open(p);
                 match f {
@@ -69,85 +56,124 @@ fn create_csv_writer(p: &str) -> Result<Writer<File>, Box<dyn Error>> {
                             .has_headers(false)
                             .from_writer(file))
                     }
-                    Err(e) => return Err(Box::new(e)),
+                    Err(e) => Err(Box::new(e)),
                 }
             } else {
-                println!("found {p} but not a valid comma separated file!");
+                // if not a file, create new writer
+
                 match csv::Writer::from_path(p) {
-                    Ok(wtr) => return Ok(wtr),
-                    Err(e) => return Err(Box::new(e)),
-                };
+                    Ok(wtr) => Ok(wtr),
+                    Err(e) => Err(Box::new(e)),
+                }
             }
         }
-        Err(_) => match csv::Writer::from_path(p) {
-            Ok(wtr) => return Ok(wtr),
-            Err(e) => return Err(Box::new(e)),
+        Err(_) => {
+            // if file not found, create new writer
+
+            match csv::Writer::from_path(p) {
+                Ok(wtr) => Ok(wtr),
+                Err(e) => Err(Box::new(e)),
+            }
+        }
+    }
+
+    // REFACTOR: maybe make a custom error for cleaner return values
+}
+
+fn check_marker(bytes: &[u8], marker: u8) -> Option<usize> {
+    let mut index = None;
+
+    for (i, b) in bytes.iter().filter(|&&b| b != 0).enumerate() {
+        if *b == marker {
+            index = Some(i);
+            break;
+        }
+    }
+
+    index
+}
+
+fn parse_reading<'a>(buf: &'a [u8]) -> Result<ParsedData, Box<dyn Error + 'a>> {
+    match str::from_utf8(buf) {
+        Ok(string) => match parse(string) {
+            Ok(parsed) => Ok(parsed),
+
+            Err(e) => Err(Box::new(e)),
         },
+        Err(e) => Err(Box::new(e)),
     }
 }
 
-pub fn listen(port: &mut Box<dyn serialport::SerialPort>) -> Result<(), Box<dyn Error>> {
-    let mut bytes_arr: Vec<u8> = Vec::new();
+fn write_reading(wtr: &mut Writer<File>, parsed: &ParsedData) -> Result<(), Box<dyn Error>> {
+    let record = parsed.to_hashmap();
 
-    let mut buf = [0; 32];
+    let serialize_res = wtr.serialize(Reading {
+        temperature: record["temperature"],
+        pressure: record["pressure"],
+        windspeed: record["windspeed"],
+        waterlevel: record["waterlevel"],
+        humidity: record["humidity"],
+    });
 
-    let path = "./readings.csv";
+    let flush_res = wtr.flush();
 
-    match create_csv_writer(path) {
-        Ok(mut wtr) => {
-            loop {
-                match port.read(&mut buf) {
-                    Ok(num_bytes) => {
-                        if num_bytes > 0 {
-                            let bytes = &buf[..num_bytes];
+    match serialize_res {
+        Ok(()) => match flush_res {
+            Ok(()) => Ok(()),
+            Err(e) => Err(Box::new(e)),
+        },
+        Err(e) => Err(Box::new(e)),
+    }
+}
 
-                            let (to_resolve, to_append) = split_byte_array(bytes, '\n');
-                            bytes_arr.extend(to_resolve);
+type Buffer<'a> = (&'a [u8], &'a [u8]);
 
-                            if to_append.len() > 0 {
-                                match str::from_utf8(&bytes_arr) {
-                                    Ok(string) => match parse(string) {
-                                        Ok(parsed) => {
-                                            // SAVE TO CSV HERE
-
-                                            println!("{:?}", parsed.to_tuple());
-
-                                            let record = parsed.to_hashmap();
-
-                                            let res = wtr.serialize(Reading {
-                                                temperature: record["temperature"],
-                                                pressure: record["pressure"],
-                                                windspeed: record["windspeed"],
-                                                waterlevel: record["waterlevel"],
-                                                humidity: record["humidity"],
-                                            });
-
-                                            match res {
-                                                Ok(()) => println!("serialize success"),
-                                                Err(e) => eprintln!("serialize failed: {e}"),
-                                            };
-
-                                            match wtr.flush() {
-                                                Ok(()) => println!("write success"),
-                                                Err(e) => eprintln!("write failed: {e}"),
-                                            }
-                                        }
-
-                                        Err(e) => eprintln!("{e}"),
-                                    },
-                                    Err(e) => eprintln!("{e}"),
-                                }
-
-                                bytes_arr.clear();
-                                bytes_arr.extend(to_append);
-                            }
-                        }
-                    }
-                    Err(e) => return Err(Box::new(e)),
-                };
+fn read_reading<'a>(
+    port: &mut Box<dyn serialport::SerialPort>,
+    buf: &'a mut [u8],
+) -> Result<Buffer<'a>, Box<dyn Error>> {
+    match port.read(buf) {
+        Ok(_) => {
+            if let Some(index) = check_marker(buf, b'\n') {
+                Ok((&buf[..index], &buf[index..]))
+            } else {
+                Ok((buf, &[]))
             }
         }
-        Err(e) => return Err(e),
+        Err(e) => Err(Box::new(e)),
+    }
+}
+
+fn listen(port: &mut Box<dyn serialport::SerialPort>) -> Result<(), Box<dyn Error>> {
+    let path = "./readings.csv";
+    let mut wtr = create_csv_writer(path)
+        .unwrap_or_else(|err| panic!("cannot read file {path} with error: {err}"));
+
+    let mut buffer: Vec<u8> = Vec::new();
+
+    loop {
+        match read_reading(port, &mut [0; 32]) {
+            Ok((bytes, excess)) => {
+                buffer.extend(bytes);
+
+                if !excess.is_empty() {
+                    match parse_reading(&buffer) {
+                        Ok(parsed) => {
+                            let res = write_reading(&mut wtr, &parsed);
+                            match res {
+                                Ok(()) => println!("success: {:?}", parsed.to_tuple()),
+                                Err(e) => eprintln!("{e}"),
+                            }
+                        }
+                        Err(e) => eprintln!("{e}"),
+                    }
+
+                    buffer.clear();
+                    buffer.extend(excess);
+                }
+            }
+            Err(e) => eprintln!("{e}"),
+        }
     }
 }
 

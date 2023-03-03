@@ -13,14 +13,13 @@ use std::collections::HashMap;
 
 pub fn whitespace(input: &str) -> IResult<&str, char, nom::error::Error<&str>> {
     let mut parse = alt((char(' '), char('\n'), char('\t'), char('\r')));
-
-    return parse(input);
+    parse(input)
 }
 
 pub fn whitespaces(input: &str) -> IResult<&str, Vec<char>, nom::error::Error<&str>> {
     let mut parse = many0(whitespace);
 
-    return parse(input);
+    parse(input)
 }
 
 pub fn value(input: &str) -> IResult<&str, f32, nom::error::Error<&str>> {
@@ -31,23 +30,19 @@ pub fn value(input: &str) -> IResult<&str, f32, nom::error::Error<&str>> {
         float,
     ));
 
-    return parse(input);
+    parse(input)
 }
 
-pub fn keyword<'a>(
-    name: &'a str,
-) -> impl FnMut(&'a str) -> IResult<&str, &str, nom::error::Error<&str>> {
-    return alt((
+pub fn keyword<'a>(name: &'a str) -> impl FnMut(&'a str) -> IResult<&str, &str, nom::error::Error<&str>> {
+    alt((
         terminated(tag(name), whitespaces),
         delimited(whitespaces, tag(name), whitespaces),
         preceded(whitespaces, tag(name)),
         tag(name),
-    ));
+    ))
 }
 
-pub fn reading<'a>(
-    name: &'a str,
-) -> impl FnMut(&'a str) -> IResult<&str, (&str, f32), nom::error::Error<&str>> {
+pub fn reading<'a>(name: &'a str) -> impl FnMut(&'a str) -> IResult<&str, (&str, f32), nom::error::Error<&str>> {
     return separated_pair(keyword(name), char(':'), value);
 }
 
@@ -68,12 +63,12 @@ pub fn readings(input: &str) -> IResult<&str, Readings, nom::error::Error<&str>>
         reading("humidity"),
     )));
 
-    return parse(input);
+    parse(input)
 }
 
 pub fn consume(input: &str) -> IResult<&str, Readings, nom::error::Error<&str>> {
-    let mut _parse = all_consuming(readings);
-    return _parse(input);
+    let mut parse = all_consuming(readings);
+    parse(input)
 }
 
 pub fn parse(input: &str) -> Result<ParsedData, nom::Err<nom::error::Error<&str>>> {
@@ -89,7 +84,7 @@ pub struct ParsedData<'a> {
 
 impl<'a> ParsedData<'a> {
     pub fn to_tuple(&self) -> Readings {
-        return self.readings;
+        self.readings
     }
     pub fn to_hashmap(&self) -> HashMap<&str, f32> {
         let mut hm = HashMap::new();
@@ -106,6 +101,6 @@ impl<'a> ParsedData<'a> {
         hm.insert(humidity.0, humidity.1);
         hm.insert(waterlevel.0, waterlevel.1);
 
-        return hm;
+        hm
     }
 }
