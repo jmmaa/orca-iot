@@ -37,7 +37,7 @@ float humidity;
 BMP280 bmp280;
 float temperature;
 float pascal;
-
+float millibar;
 
 
 // JSNSR04T
@@ -151,7 +151,7 @@ void printSerialValues() {
     Serial.print(temperature);
 
     Serial.print("pressure:");
-    Serial.print(pascal);
+    Serial.print(millibar);
 
     Serial.print("windspeed:");
     Serial.print(windspeed);
@@ -171,16 +171,19 @@ void updateValues() {
 
     // Anemometer
     float circumference = (2 * 3.1415926535 * 0.08);
-    float arc = (circumference * 120) / 360;
+    float arc = (circumference) / 3;
     // float factor = 2;
-    windspeed = (signals / serialInterval) * arc;
+    windspeed = (signals / serialInterval) * arc; // 
     signals = 0; //reset
 
 
     // BMP280
     bmp280.awaitMeasurement();
     bmp280.getTemperature(temperature);
-    bmp280.getPressure(pascal);
+    bmp280.getPressure(pascal); // millibar
+
+
+    millibar = pascal / 100;
     bmp280.triggerMeasurement();
 
 
@@ -195,7 +198,7 @@ void updateValues() {
     delayMicroseconds(10);
     digitalWrite(JSNSR04T_TRIG_PIN, LOW);
     duration = pulseIn(JSNSR04T_ECHO_PIN, HIGH);
-    distance = duration*0.034/2;
+    distance = duration*0.034/2; // Get the max range of the sensor
 
 
 
@@ -205,7 +208,7 @@ void updateValues() {
     outputMessage += String(temperature);
     outputMessage += " ";
     outputMessage += "pressure: ";
-    outputMessage += String(pascal);
+    outputMessage += String(millibar);
     outputMessage += " ";
     outputMessage += "wind speed: ";
     outputMessage += String(windspeed);
