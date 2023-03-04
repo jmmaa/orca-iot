@@ -162,7 +162,7 @@ void printSerialValues() {
     Serial.print("humidity:");
     Serial.print(humidity);
     
-    Serial.print("\n"); // marker
+    Serial.print("$"); // marker
 }
 
 

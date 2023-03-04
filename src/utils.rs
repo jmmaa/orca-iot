@@ -76,19 +76,6 @@ fn create_csv_writer(p: &str) -> Result<Writer<File>, Box<dyn Error>> {
     // REFACTOR: maybe make a custom error for cleaner return values
 }
 
-fn check_marker(bytes: &[u8], marker: u8) -> Option<usize> {
-    let mut index = None;
-
-    for (i, b) in bytes.iter().enumerate() {
-        if *b == marker {
-            index = Some(i);
-            break;
-        }
-    }
-
-    index
-}
-
 fn parse_reading<'a>(buf: &'a [u8]) -> Result<ParsedData, Box<dyn Error + 'a>> {
     match str::from_utf8(buf) {
         Ok(string) => match parse(string) {
@@ -124,9 +111,22 @@ fn write_reading(wtr: &mut Writer<File>, parsed: &ParsedData) -> Result<(), Box<
 
 type Buffer<'a> = (&'a [u8], &'a [u8]);
 
+fn check_marker(bytes: &[u8], marker: u8) -> Option<usize> {
+    let mut index = None;
+
+    for (i, b) in bytes.iter().enumerate() {
+        if *b == marker {
+            index = Some(i);
+            break;
+        }
+    }
+
+    index
+}
+
 fn split_buffer(buf: &[u8], marker: u8) -> Buffer<'_> {
-    if let Some(index) = check_marker(buf, marker) {
-        (&buf[..index], &buf[index..])
+    if let Some(i) = check_marker(buf, marker) {
+        (&buf[..i], &buf[i + 1..])
     } else {
         (buf, &[])
     }
@@ -163,7 +163,7 @@ pub fn start(baud_rate: u32, timeout: u64) {
     loop {
         match port.read(&mut buf) {
             Ok(_) => {
-                let marker = b'\n'; // newline as split marker
+                let marker = b'$'; // splitting symbol
 
                 // filter null bytes (unix)
                 let buffer = &buf
