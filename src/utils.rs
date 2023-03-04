@@ -148,7 +148,7 @@ pub fn start(baud_rate: u32, timeout: u64) {
 
     let mut to_resolve: Vec<u8> = Vec::new();
     let mut buf = [0; 32];
-
+    
     loop {
         match open_port(OS, baud_rate, timeout) {
             Ok(mut port) => {
@@ -159,7 +159,7 @@ pub fn start(baud_rate: u32, timeout: u64) {
                                 let marker = b'$'; // splitting symbol
 
                                 // filter null bytes (unix)
-                                let buffer = &buf[0..num]
+                                let buffer = &buf
                                     .iter()
                                     .filter_map(|&b| if b != 0 { Some(b) } else { None })
                                     .collect::<Vec<u8>>();

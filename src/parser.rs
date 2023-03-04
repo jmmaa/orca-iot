@@ -2,7 +2,7 @@ use nom::{
     branch::alt,
     bytes::streaming::tag,
     character::complete::char,
-    combinator::{all_consuming, complete},
+    combinator::{all_consuming, complete, eof},
     multi::many0,
     number::complete::float,
     sequence::{delimited, preceded, separated_pair, terminated, tuple},
@@ -33,7 +33,9 @@ pub fn value(input: &str) -> IResult<&str, f32, nom::error::Error<&str>> {
     parse(input)
 }
 
-pub fn keyword<'a>(name: &'a str) -> impl FnMut(&'a str) -> IResult<&str, &str, nom::error::Error<&str>> {
+pub fn keyword<'a>(
+    name: &'a str,
+) -> impl FnMut(&'a str) -> IResult<&str, &str, nom::error::Error<&str>> {
     alt((
         terminated(tag(name), whitespaces),
         delimited(whitespaces, tag(name), whitespaces),
@@ -42,7 +44,9 @@ pub fn keyword<'a>(name: &'a str) -> impl FnMut(&'a str) -> IResult<&str, &str, 
     ))
 }
 
-pub fn reading<'a>(name: &'a str) -> impl FnMut(&'a str) -> IResult<&str, (&str, f32), nom::error::Error<&str>> {
+pub fn reading<'a>(
+    name: &'a str,
+) -> impl FnMut(&'a str) -> IResult<&str, (&str, f32), nom::error::Error<&str>> {
     return separated_pair(keyword(name), char(':'), value);
 }
 
@@ -67,7 +71,7 @@ pub fn readings(input: &str) -> IResult<&str, Readings, nom::error::Error<&str>>
 }
 
 pub fn consume(input: &str) -> IResult<&str, Readings, nom::error::Error<&str>> {
-    let mut parse = all_consuming(readings);
+    let mut parse = all_consuming(terminated(readings, eof));
     parse(input)
 }
 
