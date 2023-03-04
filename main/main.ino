@@ -53,7 +53,7 @@ bool hovered = false;
 
 void setup()
 {
-    Serial.begin(115200);
+    Serial.begin(9600);
 
     // lcd
     lcd.init();
