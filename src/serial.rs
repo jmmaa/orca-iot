@@ -15,12 +15,17 @@ use std::time::Duration;
 
 use crate::parser::{parse, ParsedData};
 
-fn open_port(
-    env: &str,
-    baud_rate: u32,
-    timeout: u64,
-) -> serialport::Result<Box<dyn serialport::SerialPort>> {
-    let path = match env {
+#[derive(serde::Serialize)]
+struct Reading {
+    temperature: f32,
+    pressure: f32,
+    windspeed: f32,
+    waterlevel: f32,
+    humidity: f32,
+}
+
+fn open_port(e: &str, b: u32, t: u64) -> serialport::Result<Box<dyn serialport::SerialPort>> {
+    let path = match e {
         "windows" => "COM3",
         "linux" => "/dev/ttyACM0",
         _ => {
@@ -29,18 +34,9 @@ fn open_port(
         }
     };
 
-    serialport::new(path, baud_rate)
-        .timeout(Duration::from_millis(timeout))
+    serialport::new(path, b)
+        .timeout(Duration::from_millis(t))
         .open()
-}
-
-#[derive(serde::Serialize)]
-struct Reading {
-    temperature: f32,
-    pressure: f32,
-    windspeed: f32,
-    waterlevel: f32,
-    humidity: f32,
 }
 
 fn create_csv_writer(p: &str) -> Result<Writer<File>, Box<dyn Error>> {
@@ -128,19 +124,11 @@ fn write_reading(wtr: &mut Writer<File>, parsed: &ParsedData) -> Result<(), Box<
 
 type Buffer<'a> = (&'a [u8], &'a [u8]);
 
-fn read_reading<'a>(
-    port: &mut Box<dyn serialport::SerialPort>,
-    buf: &'a mut [u8],
-) -> Result<Buffer<'a>, Box<dyn Error>> {
-    match port.read(buf) {
-        Ok(_) => {
-            if let Some(index) = check_marker(buf, b'\n') {
-                Ok((&buf[..index], &buf[index..]))
-            } else {
-                Ok((buf, &[]))
-            }
-        }
-        Err(e) => Err(Box::new(e)),
+fn split_buffer(buf: &[u8], marker: u8) -> Buffer<'_> {
+    if let Some(index) = check_marker(buf, marker) {
+        (&buf[..index], &buf[index..])
+    } else {
+        (buf, &[])
     }
 }
 
@@ -149,15 +137,20 @@ fn listen(port: &mut Box<dyn serialport::SerialPort>) -> Result<(), Box<dyn Erro
     let mut wtr = create_csv_writer(path)
         .unwrap_or_else(|err| panic!("cannot read file {path} with error: {err}"));
 
-    let mut buffer: Vec<u8> = Vec::new();
+    let mut to_resolve: Vec<u8> = Vec::new();
+    let mut buf = [0; 32];
 
     loop {
-        match read_reading(port, &mut [0; 32]) {
-            Ok((bytes, excess)) => {
-                buffer.extend(bytes);
+        match port.read(&mut buf) {
+            Ok(_) => {
+                let marker = b'\n'; // newline as split marker
+
+                let (bytes, excess) = split_buffer(&buf, marker);
+
+                to_resolve.extend(bytes);
 
                 if !excess.is_empty() {
-                    match parse_reading(&buffer) {
+                    match parse_reading(&to_resolve) {
                         Ok(parsed) => {
                             let res = write_reading(&mut wtr, &parsed);
                             match res {
@@ -168,8 +161,8 @@ fn listen(port: &mut Box<dyn serialport::SerialPort>) -> Result<(), Box<dyn Erro
                         Err(e) => eprintln!("{e}"),
                     }
 
-                    buffer.clear();
-                    buffer.extend(excess);
+                    to_resolve.clear();
+                    to_resolve.extend(excess);
                 }
             }
             Err(e) => eprintln!("{e}"),
@@ -177,7 +170,16 @@ fn listen(port: &mut Box<dyn serialport::SerialPort>) -> Result<(), Box<dyn Erro
     }
 }
 
-pub fn init(baud_rate: u32, timeout: u64) {
+/// starts a serial connection in a loop
+///
+/// # Arguments
+///
+/// * `baud_rate` = baud rate for serial connection
+///
+/// * `timeout` = amount of time to wait for receiving data before timing out
+///
+///
+pub fn start(baud_rate: u32, timeout: u64) {
     loop {
         match open_port(OS, baud_rate, timeout) {
             Ok(mut port) => {
