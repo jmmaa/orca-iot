@@ -79,7 +79,7 @@ fn create_csv_writer(p: &str) -> Result<Writer<File>, Box<dyn Error>> {
 fn check_marker(bytes: &[u8], marker: u8) -> Option<usize> {
     let mut index = None;
 
-    for (i, b) in bytes.iter().filter(|&&b| b != 0).enumerate() {
+    for (i, b) in bytes.iter().enumerate() {
         if *b == marker {
             index = Some(i);
             break;
@@ -132,44 +132,6 @@ fn split_buffer(buf: &[u8], marker: u8) -> Buffer<'_> {
     }
 }
 
-fn listen(port: &mut Box<dyn serialport::SerialPort>) -> Result<(), Box<dyn Error>> {
-    let path = "./readings.csv";
-    let mut wtr = create_csv_writer(path)
-        .unwrap_or_else(|err| panic!("cannot read file {path} with error: {err}"));
-
-    let mut to_resolve: Vec<u8> = Vec::new();
-    let mut buf = [0; 32];
-
-    loop {
-        match port.read(&mut buf) {
-            Ok(_) => {
-                let marker = b'\n'; // newline as split marker
-
-                let (bytes, excess) = split_buffer(&buf, marker);
-
-                to_resolve.extend(bytes);
-
-                if !excess.is_empty() {
-                    match parse_reading(&to_resolve) {
-                        Ok(parsed) => {
-                            let res = write_reading(&mut wtr, &parsed);
-                            match res {
-                                Ok(()) => println!("success: {:?}", parsed.to_tuple()),
-                                Err(e) => eprintln!("{e}"),
-                            }
-                        }
-                        Err(e) => eprintln!("{e}"),
-                    }
-
-                    to_resolve.clear();
-                    to_resolve.extend(excess);
-                }
-            }
-            Err(e) => eprintln!("{e}"),
-        }
-    }
-}
-
 /// starts a serial connection in a loop
 ///
 /// # Arguments
@@ -180,17 +142,55 @@ fn listen(port: &mut Box<dyn serialport::SerialPort>) -> Result<(), Box<dyn Erro
 ///
 ///
 pub fn start(baud_rate: u32, timeout: u64) {
-    loop {
+    let path = "./readings.csv";
+    let mut wtr = create_csv_writer(path)
+        .unwrap_or_else(|err| panic!("cannot read file {path} with error: {err}"));
+
+    let mut to_resolve: Vec<u8> = Vec::new();
+    let mut buf = [0; 32];
+
+    let mut port: Box<dyn serialport::SerialPort> = loop {
         match open_port(OS, baud_rate, timeout) {
-            Ok(mut port) => {
-                println!("connected!");
-                listen(&mut port).unwrap();
+            Ok(port) => {
+                break port;
             }
-            Err(e) => {
-                eprintln!("failed to open port: {:?}", e.description);
-                eprintln!("retrying...");
-            }
+            Err(e) => eprintln!("{e}"),
         }
+
         sleep(Duration::from_secs(1));
+    };
+
+    loop {
+        match port.read(&mut buf) {
+            Ok(_) => {
+                let marker = b'\n'; // newline as split marker
+
+                // filter null bytes (unix)
+                let buffer = &buf
+                    .iter()
+                    .filter_map(|&b| if b != 0 { Some(b) } else { None })
+                    .collect::<Vec<u8>>();
+
+                let (bytes, excess) = split_buffer(buffer, marker);
+
+                to_resolve.extend(bytes);
+
+                if !excess.is_empty() {
+                    match parse_reading(&to_resolve) {
+                        Ok(parsed) => match write_reading(&mut wtr, &parsed) {
+                            Ok(()) => println!("success: {:?}", parsed.to_tuple()),
+                            Err(e) => eprintln!("{e}"),
+                        },
+                        Err(e) => eprintln!("{e}"),
+                    }
+
+                    to_resolve.clear();
+                    to_resolve.extend(excess);
+                }
+            }
+            Err(e) => eprintln!("{e}"),
+        }
     }
+
+    // REFACTOR THIS LATER
 }
