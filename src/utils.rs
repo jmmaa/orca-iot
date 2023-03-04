@@ -111,7 +111,7 @@ fn write_reading(wtr: &mut Writer<File>, parsed: &ParsedData) -> Result<(), Box<
 
 type Buffer<'a> = (&'a [u8], &'a [u8]);
 
-fn check_marker(bytes: &[u8], marker: u8) -> Option<usize> {
+pub fn check_marker(bytes: &[u8], marker: u8) -> Option<usize> {
     let mut index = None;
 
     for (i, b) in bytes.iter().enumerate() {
@@ -124,7 +124,7 @@ fn check_marker(bytes: &[u8], marker: u8) -> Option<usize> {
     index
 }
 
-fn split_buffer(buf: &[u8], marker: u8) -> Buffer<'_> {
+pub fn split_buffer(buf: &[u8], marker: u8) -> Buffer<'_> {
     if let Some(i) = check_marker(buf, marker) {
         (&buf[..i], &buf[i + 1..])
     } else {
@@ -149,47 +149,47 @@ pub fn start(baud_rate: u32, timeout: u64) {
     let mut to_resolve: Vec<u8> = Vec::new();
     let mut buf = [0; 32];
 
-    let mut port: Box<dyn serialport::SerialPort> = loop {
+    loop {
         match open_port(OS, baud_rate, timeout) {
-            Ok(port) => {
-                break port;
+            Ok(mut port) => {
+                loop {
+                    match port.read(&mut buf) {
+                        Ok(num) => {
+                            if num > 0 {
+                                let marker = b'$'; // splitting symbol
+
+                                // filter null bytes (unix)
+                                let buffer = &buf
+                                    .iter()
+                                    .filter_map(|&b| if b != 0 { Some(b) } else { None })
+                                    .collect::<Vec<u8>>();
+
+                                let (bytes, excess) = split_buffer(buffer, marker);
+
+                                to_resolve.extend(bytes);
+
+                                if !excess.is_empty() {
+                                    match parse_reading(&to_resolve) {
+                                        Ok(parsed) => match write_reading(&mut wtr, &parsed) {
+                                            Ok(()) => println!("success: {:?}", parsed.to_tuple()),
+                                            Err(e) => eprintln!("{e}"),
+                                        },
+                                        Err(e) => eprintln!("{e}"),
+                                    }
+
+                                    to_resolve.clear();
+                                    to_resolve.extend(excess);
+                                }
+                            }
+                        }
+                        Err(e) => eprintln!("{e}"),
+                    }
+                }
             }
             Err(e) => eprintln!("{e}"),
         }
 
         sleep(Duration::from_secs(1));
-    };
-
-    loop {
-        match port.read(&mut buf) {
-            Ok(_) => {
-                let marker = b'$'; // splitting symbol
-
-                // filter null bytes (unix)
-                let buffer = &buf
-                    .iter()
-                    .filter_map(|&b| if b != 0 { Some(b) } else { None })
-                    .collect::<Vec<u8>>();
-
-                let (bytes, excess) = split_buffer(buffer, marker);
-
-                to_resolve.extend(bytes);
-
-                if !excess.is_empty() {
-                    match parse_reading(&to_resolve) {
-                        Ok(parsed) => match write_reading(&mut wtr, &parsed) {
-                            Ok(()) => println!("success: {:?}", parsed.to_tuple()),
-                            Err(e) => eprintln!("{e}"),
-                        },
-                        Err(e) => eprintln!("{e}"),
-                    }
-
-                    to_resolve.clear();
-                    to_resolve.extend(excess);
-                }
-            }
-            Err(e) => eprintln!("{e}"),
-        }
     }
 
     // REFACTOR THIS LATER
