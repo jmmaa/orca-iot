@@ -95,20 +95,24 @@ fn test_reading_parser() {
 #[test]
 fn test_readings_parser() {
     let result = parser::readings(
-        "windspeed:
-        0.0
-
-        pressure:
-            100384.0
+        "
 
         temperature:
             34.97
 
-        humidity:
-            66.0
+
+        pressure:
+            100384.0
+        
+        windspeed:
+            0.0
 
         waterlevel:
             96.68
+
+        humidity:
+            66.0
+        
         ",
     );
 
@@ -117,11 +121,11 @@ fn test_readings_parser() {
         Ok((
             "",
             (
-                ("windspeed", 0.0),
-                ("pressure", 100384.0),
                 ("temperature", 34.97),
+                ("pressure", 100384.0),
+                ("windspeed", 0.0),
+                ("waterlevel", 96.68),
                 ("humidity", 66.0),
-                ("waterlevel", 96.68)
             )
         ))
     )
