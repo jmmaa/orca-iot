@@ -5,15 +5,17 @@ use csv::Writer;
 
 use serde;
 
-use std::env::consts::OS;
 use std::error::Error;
 use std::fs;
 use std::fs::File;
 use std::str;
 use std::thread::sleep;
 use std::time::Duration;
+use std::{env::consts::OS, io::Read};
 
 use crate::parser::{parse, ParsedData};
+
+use serial::prelude::*;
 
 #[derive(serde::Serialize)]
 struct Reading {
@@ -37,7 +39,6 @@ fn open_port(e: &str, b: u32, t: u64) -> serialport::Result<Box<dyn serialport::
     serialport::new(path, b)
         .timeout(Duration::from_millis(t))
         .flow_control(serialport::FlowControl::None)
-        .data_bits(serialport::DataBits::Eight)
         .stop_bits(serialport::StopBits::One)
         .parity(serialport::Parity::None)
         .open()
@@ -136,37 +137,44 @@ pub fn split_buffer(buf: &[u8], marker: u8) -> Buffer<'_> {
     }
 }
 
-/// starts a serial connection in a loop
-///
-/// # Arguments
-///
-/// * `baud_rate` = baud rate for serial connection
-///
-/// * `timeout` = amount of time to wait for receiving data before timing out
-///
-///
 pub fn start(baud_rate: u32, timeout: u64) {
     let path = "./readings.csv";
     let mut wtr = create_csv_writer(path)
         .unwrap_or_else(|err| panic!("cannot read file {path} with error: {err}"));
 
     let mut to_resolve: Vec<u8> = Vec::new();
-    let mut buf = [0; 32];
+    let mut buf = [0; 8];
+
+    //
+    let settings = serial::PortSettings {
+        baud_rate: serial::Baud9600,
+        char_size: serial::CharSize::Bits8,
+        parity: serial::Parity::ParityNone,
+        stop_bits: serial::StopBits::Stop1,
+        flow_control: serial::FlowControl::FlowNone,
+    };
+
+    //
 
     loop {
-        match open_port(OS, baud_rate, timeout) {
+        match serial::open("COM3") {
             Ok(mut port) => {
+                match port.set_timeout(Duration::from_secs(10)) {
+                    Ok(()) => {}
+                    Err(e) => eprintln!("{e}"),
+                }
+                match port.configure(&settings) {
+                    Ok(()) => {}
+                    Err(e) => eprintln!("{e}"),
+                }
+
                 loop {
                     match port.read(&mut buf) {
                         Ok(num) => {
                             if num > 0 {
                                 let marker = b'$'; // splitting symbol
 
-                                // filter null bytes (unix)
-                                // let buffer = &buf
-                                //     .iter()
-                                //     .filter_map(|&b| if b != 0 { Some(b) } else { None })
-                                //     .collect::<Vec<u8>>();
+                                println!("{:?}", buf);
 
                                 let (bytes, excess) = split_buffer(&buf, marker);
 
@@ -195,6 +203,44 @@ pub fn start(baud_rate: u32, timeout: u64) {
 
         sleep(Duration::from_secs(1));
     }
+    // loop {
+    //     match open_port(OS, baud_rate, timeout) {
+    //         Ok(mut port) => {
+    //             loop {
+    //                 match port.read(&mut buf) {
+    //                     Ok(num) => {
+    //                         if num > 0 {
+    //                             let marker = b'$'; // splitting symbol
+
+    //                             println!("{:?}", buf);
+
+    //                             let (bytes, excess) = split_buffer(&buf, marker);
+
+    //                             to_resolve.extend(bytes);
+
+    //                             if !excess.is_empty() {
+    //                                 match parse_reading(&to_resolve) {
+    //                                     Ok(parsed) => match write_reading(&mut wtr, &parsed) {
+    //                                         Ok(()) => println!("success: {:?}", parsed.to_tuple()),
+    //                                         Err(e) => eprintln!("{e}"),
+    //                                     },
+    //                                     Err(e) => eprintln!("{e}"),
+    //                                 }
+
+    //                                 to_resolve.clear();
+    //                                 to_resolve.extend(excess);
+    //                             }
+    //                         }
+    //                     }
+    //                     Err(e) => eprintln!("{e}"),
+    //                 }
+    //             }
+    //         }
+    //         Err(e) => eprintln!("{e}"),
+    //     }
+
+    //     sleep(Duration::from_secs(1));
+    // }
 
     // REFACTOR THIS LATER
 }
