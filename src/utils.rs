@@ -35,7 +35,10 @@ fn open_port(e: &str, b: u32, t: u64) -> serialport::Result<Box<dyn serialport::
     };
 
     serialport::new(path, b)
+        .baud_rate(b)
         .timeout(Duration::from_millis(t))
+        .data_bits(serialport::DataBits::Eight)
+        .stop_bits(serialport::StopBits::One)
         .open()
 }
 
@@ -148,7 +151,7 @@ pub fn start(baud_rate: u32, timeout: u64) {
 
     let mut to_resolve: Vec<u8> = Vec::new();
     let mut buf = [0; 32];
-    
+
     loop {
         match open_port(OS, baud_rate, timeout) {
             Ok(mut port) => {
