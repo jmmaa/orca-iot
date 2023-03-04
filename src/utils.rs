@@ -35,10 +35,11 @@ fn open_port(e: &str, b: u32, t: u64) -> serialport::Result<Box<dyn serialport::
     };
 
     serialport::new(path, b)
-        .baud_rate(b)
         .timeout(Duration::from_millis(t))
+        .flow_control(serialport::FlowControl::None)
         .data_bits(serialport::DataBits::Eight)
         .stop_bits(serialport::StopBits::One)
+        .parity(serialport::Parity::None)
         .open()
 }
 
