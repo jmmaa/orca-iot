@@ -15,8 +15,6 @@ use std::{env::consts::OS, io::Read};
 
 use crate::parser::{parse, ParsedData};
 
-use serial::prelude::*;
-
 #[derive(serde::Serialize)]
 struct Reading {
     temperature: f32,
@@ -143,31 +141,11 @@ pub fn start(baud_rate: u32, timeout: u64) {
         .unwrap_or_else(|err| panic!("cannot read file {path} with error: {err}"));
 
     let mut to_resolve: Vec<u8> = Vec::new();
-    let mut buf = [0; 8];
-
-    //
-    let settings = serial::PortSettings {
-        baud_rate: serial::Baud9600,
-        char_size: serial::CharSize::Bits8,
-        parity: serial::Parity::ParityNone,
-        stop_bits: serial::StopBits::Stop1,
-        flow_control: serial::FlowControl::FlowNone,
-    };
-
-    //
+    let mut buf = [0; 16];
 
     loop {
-        match serial::open("COM3") {
+        match open_port(OS, baud_rate, timeout) {
             Ok(mut port) => {
-                match port.set_timeout(Duration::from_secs(10)) {
-                    Ok(()) => {}
-                    Err(e) => eprintln!("{e}"),
-                }
-                match port.configure(&settings) {
-                    Ok(()) => {}
-                    Err(e) => eprintln!("{e}"),
-                }
-
                 loop {
                     match port.read(&mut buf) {
                         Ok(num) => {
@@ -194,7 +172,10 @@ pub fn start(baud_rate: u32, timeout: u64) {
                                 }
                             }
                         }
-                        Err(e) => eprintln!("{e}"),
+                        Err(e) => {
+                            eprintln!("{e}");
+                            break;
+                        }
                     }
                 }
             }

@@ -2,7 +2,7 @@ use nom::{
     branch::alt,
     bytes::streaming::tag,
     character::complete::char,
-    combinator::{complete, eof},
+    combinator::{all_consuming, complete, eof},
     multi::many0,
     number::complete::float,
     sequence::{delimited, preceded, separated_pair, terminated, tuple},
@@ -64,14 +64,14 @@ pub fn readings(input: &str) -> IResult<&str, Readings, nom::error::Error<&str>>
         reading("pressure"),
         reading("windspeed"),
         reading("waterlevel"),
-        reading("humidity"),
+        terminated(reading("humidity"), eof),
     )));
 
     parse(input)
 }
 
 pub fn consume(input: &str) -> IResult<&str, Readings, nom::error::Error<&str>> {
-    let mut parse = terminated(readings, eof);
+    let mut parse = all_consuming(readings);
     parse(input)
 }
 
