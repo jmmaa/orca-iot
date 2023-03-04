@@ -163,12 +163,12 @@ pub fn start(baud_rate: u32, timeout: u64) {
                                 let marker = b'$'; // splitting symbol
 
                                 // filter null bytes (unix)
-                                let buffer = &buf
-                                    .iter()
-                                    .filter_map(|&b| if b != 0 { Some(b) } else { None })
-                                    .collect::<Vec<u8>>();
+                                // let buffer = &buf
+                                //     .iter()
+                                //     .filter_map(|&b| if b != 0 { Some(b) } else { None })
+                                //     .collect::<Vec<u8>>();
 
-                                let (bytes, excess) = split_buffer(buffer, marker);
+                                let (bytes, excess) = split_buffer(&buf, marker);
 
                                 to_resolve.extend(bytes);
 
