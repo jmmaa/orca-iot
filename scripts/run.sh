@@ -1,2 +1,2 @@
-stty -F /dev/ttyACM0 speed 9600; -ignpar
+stty -F /dev/ttyACM0 9600 cs8 -ignpar
 "./target/release/orca-iot"
