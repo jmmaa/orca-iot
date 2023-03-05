@@ -50,6 +50,10 @@ impl<'a, V> Slicer<'a, V, NoStartIndex> {
     pub fn to_before(&self, n: usize) -> &'a [V] {
         &self.v[..n]
     }
+
+    pub fn to_end(&self) -> &'a [V] {
+        &self.v[..]
+    }
 }
 
 impl<'a, V> Slicer<'a, V> {

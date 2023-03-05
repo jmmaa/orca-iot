@@ -73,9 +73,10 @@ fn open_port(b: u32, t: u64) -> Result<Box<dyn serialport::SerialPort>, Box<dyn 
     match find_port() {
         Ok(path) => {
             let port = serialport::new(path, b)
-                .timeout(Duration::from_millis(t))
                 .flow_control(serialport::FlowControl::None)
+                .data_bits(serialport::DataBits::Eight)
                 .stop_bits(serialport::StopBits::One)
+                .timeout(Duration::from_millis(t))
                 .parity(serialport::Parity::None)
                 .open();
 
@@ -160,15 +161,15 @@ fn write_reading(wtr: &mut Writer<File>, parsed: &ParsedData) -> Result<(), Box<
 
 fn process_data(port: &mut Box<dyn serialport::SerialPort>, wtr: &mut Writer<File>) {
     let mut to_resolve: Vec<u8> = Vec::new();
-    let mut buf = [0; 16];
+    let mut buf = [0; 4];
 
     loop {
         match port.read(&mut buf) {
             Ok(num) => {
                 if num > 0 {
-                    let slice = Slicer::new(&buf);
+                    let slice = Slicer::new(Slicer::new(&buf).to_before(num));
 
-                    let marker_pos = slice.from(0).to_before(num).position(|b| b == b'$');
+                    let marker_pos = slice.to_end().position(|b| b == b'$');
 
                     if let Some(marker_index) = marker_pos {
                         to_resolve.extend(slice.to_before(marker_index));
@@ -184,7 +185,7 @@ fn process_data(port: &mut Box<dyn serialport::SerialPort>, wtr: &mut Writer<Fil
                         to_resolve.clear();
                         to_resolve.extend(slice.from_after(marker_index).to_end());
                     } else {
-                        to_resolve.extend(slice.from(0).to_before(num));
+                        to_resolve.extend(slice.to_before(num));
                     }
                 }
             }
