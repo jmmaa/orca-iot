@@ -5,13 +5,13 @@ use csv::Writer;
 
 use serde;
 
+use std::env::consts::OS;
 use std::error::Error;
 use std::fs;
 use std::fs::File;
 use std::str;
 use std::thread::sleep;
 use std::time::Duration;
-use std::{env::consts::OS, io::Read};
 
 use crate::parser::{parse, ParsedData};
 
@@ -125,53 +125,55 @@ pub fn check_marker(bytes: &[u8], marker: u8) -> Option<usize> {
     index
 }
 
+fn process_data(port: &mut Box<dyn serialport::SerialPort>, wtr: &mut Writer<File>) {
+    let mut to_resolve: Vec<u8> = Vec::new();
+    let mut buf = [0; 16];
+
+    loop {
+        match port.read(&mut buf) {
+            Ok(num) => {
+                if num > 0 {
+                    let marker = b'$'; // splitting symbol
+
+                    let buffer = &buf[..num];
+
+                    if let Some(i) = check_marker(buffer, marker) {
+                        let bytes = &buffer[..i];
+                        let excess = &buffer[i + 1..];
+
+                        to_resolve.extend(bytes);
+
+                        match parse_reading(&to_resolve) {
+                            Ok(parsed) => match write_reading(wtr, &parsed) {
+                                Ok(()) => println!("success: {:?}", parsed.to_tuple()),
+                                Err(e) => eprintln!("{e}"),
+                            },
+                            Err(e) => eprintln!("{e}"),
+                        }
+
+                        to_resolve.clear();
+                        to_resolve.extend(excess);
+                    } else {
+                        to_resolve.extend(buffer);
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("{e}");
+                break;
+            }
+        }
+    }
+}
+
 pub fn start(baud_rate: u32, timeout: u64) {
     let path = "./readings.csv";
     let mut wtr = create_csv_writer(path)
         .unwrap_or_else(|err| panic!("cannot read file {path} with error: {err}"));
 
-    let mut to_resolve: Vec<u8> = Vec::new();
-    let mut buf = [0; 16];
-
     loop {
         match open_port(OS, baud_rate, timeout) {
-            Ok(mut port) => {
-                loop {
-                    match port.read(&mut buf) {
-                        Ok(num) => {
-                            if num > 0 {
-                                let marker = b'$'; // splitting symbol
-
-                                let buffer = &buf[..num];
-
-                                if let Some(i) = check_marker(buffer, marker) {
-                                    let bytes = &buffer[..i];
-                                    let excess = &buffer[i + 1..];
-
-                                    to_resolve.extend(bytes);
-
-                                    match parse_reading(&to_resolve) {
-                                        Ok(parsed) => match write_reading(&mut wtr, &parsed) {
-                                            Ok(()) => println!("success: {:?}", parsed.to_tuple()),
-                                            Err(e) => eprintln!("{e}"),
-                                        },
-                                        Err(e) => eprintln!("{e}"),
-                                    }
-
-                                    to_resolve.clear();
-                                    to_resolve.extend(excess);
-                                } else {
-                                    to_resolve.extend(buffer);
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            eprintln!("{e}");
-                            break;
-                        }
-                    }
-                }
-            }
+            Ok(mut port) => process_data(&mut port, &mut wtr),
             Err(e) => eprintln!("{e}"),
         }
 
