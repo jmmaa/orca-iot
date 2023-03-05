@@ -141,7 +141,7 @@ pub fn start(baud_rate: u32, timeout: u64) {
         .unwrap_or_else(|err| panic!("cannot read file {path} with error: {err}"));
 
     let mut to_resolve: Vec<u8> = Vec::new();
-    let mut buf = [0; 16];
+    let mut buf = [0; 64];
 
     loop {
         match open_port(OS, baud_rate, timeout) {
@@ -154,7 +154,7 @@ pub fn start(baud_rate: u32, timeout: u64) {
 
                                 println!("{:?}", buf);
 
-                                let (bytes, excess) = split_buffer(&buf, marker);
+                                let (bytes, excess) = split_buffer(&buf[..num], marker);
 
                                 to_resolve.extend(bytes);
 
