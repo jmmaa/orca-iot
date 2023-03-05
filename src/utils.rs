@@ -112,8 +112,6 @@ fn write_reading(wtr: &mut Writer<File>, parsed: &ParsedData) -> Result<(), Box<
     }
 }
 
-type Buffer<'a> = (&'a [u8], &'a [u8]);
-
 pub fn check_marker(bytes: &[u8], marker: u8) -> Option<usize> {
     let mut index = None;
 
@@ -127,21 +125,13 @@ pub fn check_marker(bytes: &[u8], marker: u8) -> Option<usize> {
     index
 }
 
-pub fn split_buffer(buf: &[u8], marker: u8) -> Buffer<'_> {
-    if let Some(i) = check_marker(buf, marker) {
-        (&buf[..i], &buf[i + 1..])
-    } else {
-        (buf, &[])
-    }
-}
-
 pub fn start(baud_rate: u32, timeout: u64) {
     let path = "./readings.csv";
     let mut wtr = create_csv_writer(path)
         .unwrap_or_else(|err| panic!("cannot read file {path} with error: {err}"));
 
     let mut to_resolve: Vec<u8> = Vec::new();
-    let mut buf = [0; 64];
+    let mut buf = [0; 16];
 
     loop {
         match open_port(OS, baud_rate, timeout) {
@@ -152,13 +142,14 @@ pub fn start(baud_rate: u32, timeout: u64) {
                             if num > 0 {
                                 let marker = b'$'; // splitting symbol
 
-                                println!("{:?}", buf);
+                                let buffer = &buf[..num];
 
-                                let (bytes, excess) = split_buffer(&buf[..num], marker);
+                                if let Some(i) = check_marker(buffer, marker) {
+                                    let bytes = &buffer[..i];
+                                    let excess = &buffer[i + 1..];
 
-                                to_resolve.extend(bytes);
+                                    to_resolve.extend(bytes);
 
-                                if !excess.is_empty() {
                                     match parse_reading(&to_resolve) {
                                         Ok(parsed) => match write_reading(&mut wtr, &parsed) {
                                             Ok(()) => println!("success: {:?}", parsed.to_tuple()),
@@ -169,6 +160,8 @@ pub fn start(baud_rate: u32, timeout: u64) {
 
                                     to_resolve.clear();
                                     to_resolve.extend(excess);
+                                } else {
+                                    to_resolve.extend(buffer);
                                 }
                             }
                         }
@@ -184,44 +177,4 @@ pub fn start(baud_rate: u32, timeout: u64) {
 
         sleep(Duration::from_secs(1));
     }
-    // loop {
-    //     match open_port(OS, baud_rate, timeout) {
-    //         Ok(mut port) => {
-    //             loop {
-    //                 match port.read(&mut buf) {
-    //                     Ok(num) => {
-    //                         if num > 0 {
-    //                             let marker = b'$'; // splitting symbol
-
-    //                             println!("{:?}", buf);
-
-    //                             let (bytes, excess) = split_buffer(&buf, marker);
-
-    //                             to_resolve.extend(bytes);
-
-    //                             if !excess.is_empty() {
-    //                                 match parse_reading(&to_resolve) {
-    //                                     Ok(parsed) => match write_reading(&mut wtr, &parsed) {
-    //                                         Ok(()) => println!("success: {:?}", parsed.to_tuple()),
-    //                                         Err(e) => eprintln!("{e}"),
-    //                                     },
-    //                                     Err(e) => eprintln!("{e}"),
-    //                                 }
-
-    //                                 to_resolve.clear();
-    //                                 to_resolve.extend(excess);
-    //                             }
-    //                         }
-    //                     }
-    //                     Err(e) => eprintln!("{e}"),
-    //                 }
-    //             }
-    //         }
-    //         Err(e) => eprintln!("{e}"),
-    //     }
-
-    //     sleep(Duration::from_secs(1));
-    // }
-
-    // REFACTOR THIS LATER
 }

@@ -1,4 +1,4 @@
-use orca_iot::parser::{self, consume, parse, readings};
+use orca_iot::parser;
 
 #[test]
 fn test_whitespace_parser() {
@@ -136,7 +136,7 @@ fn test_eof() {
     let inp = "temperature:27.77pressure:1011.78windspeed:0.00waterlevel:19.01humidity:87.00";
 
     assert_eq!(
-        consume(inp),
+        parser::consume(inp),
         Ok((
             "",
             (
