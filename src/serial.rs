@@ -182,7 +182,7 @@ fn process_data(port: &mut Box<dyn serialport::SerialPort>, wtr: &mut Writer<Fil
                         }
 
                         to_resolve.clear();
-                        to_resolve.extend(slice.after(marker_index).up_to_end());
+                        to_resolve.extend(slice.from_after(marker_index).to_end());
                     } else {
                         to_resolve.extend(slice.from(0).to(num));
                     }

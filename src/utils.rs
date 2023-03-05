@@ -14,10 +14,10 @@ pub struct Slicer<'a, V, S = NoStartIndex> {
 
 impl<'a, V> Slicer<'a, V, NoEndIndex> {
     pub fn to(&self, n: usize) -> &'a [V] {
-        &self.v[self.start..n]
+        &self.v[self.start..=n]
     }
 
-    pub fn up_to_end(&self) -> &'a [V] {
+    pub fn to_end(&self) -> &'a [V] {
         &self.v[self.start..]
     }
 }
@@ -31,7 +31,7 @@ impl<'a, V> Slicer<'a, V, NoStartIndex> {
         }
     }
 
-    pub fn after(&self, n: usize) -> Slicer<'a, V, NoEndIndex> {
+    pub fn from_after(&self, n: usize) -> Slicer<'a, V, NoEndIndex> {
         Slicer {
             v: self.v,
             s: std::marker::PhantomData::<NoEndIndex>,
@@ -40,7 +40,7 @@ impl<'a, V> Slicer<'a, V, NoStartIndex> {
     }
 
     pub fn up_to(&self, n: usize) -> &'a [V] {
-        &self.v[..n]
+        &self.v[..=n]
     }
 }
 
