@@ -10,5 +10,7 @@ fn test_slicer() {
 
     assert_eq!(slice.from(2).to(4), &[3, 4, 5]);
 
-    assert_eq!(slice.from_after(0).to_end(), &[2, 3, 4, 5])
+    assert_eq!(slice.from_after(0).to_end(), &[2, 3, 4, 5]);
+
+    assert_eq!(slice.from(1).to_before(5), &[2, 3, 4, 5]);
 }

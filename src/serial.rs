@@ -168,10 +168,10 @@ fn process_data(port: &mut Box<dyn serialport::SerialPort>, wtr: &mut Writer<Fil
                 if num > 0 {
                     let slice = Slicer::new(&buf);
 
-                    let marker_pos = slice.from(0).to(num).position(|b| b == b'$');
+                    let marker_pos = slice.from(0).to_before(num).position(|b| b == b'$');
 
                     if let Some(marker_index) = marker_pos {
-                        to_resolve.extend(slice.up_to(marker_index));
+                        to_resolve.extend(slice.to_before(marker_index));
 
                         match parse_reading(&to_resolve) {
                             Ok(parsed) => match write_reading(wtr, &parsed) {
@@ -184,7 +184,7 @@ fn process_data(port: &mut Box<dyn serialport::SerialPort>, wtr: &mut Writer<Fil
                         to_resolve.clear();
                         to_resolve.extend(slice.from_after(marker_index).to_end());
                     } else {
-                        to_resolve.extend(slice.from(0).to(num));
+                        to_resolve.extend(slice.from(0).to_before(num));
                     }
                 }
             }
