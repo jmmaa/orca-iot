@@ -10,6 +10,7 @@ serialport = "4.2.0"
 nom = "7"
 csv = "1.2.0"
 serde = { version = "1", features = ["derive"] }
+clap = { version = "4.1.8", features = ["derive"] }
 
 [profile.release]
 opt-level = 3

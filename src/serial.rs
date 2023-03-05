@@ -1,5 +1,5 @@
 use nom::InputIter;
-use serialport;
+use serialport::{self, SerialPortType::UsbPort, UsbPortInfo};
 
 use csv;
 use csv::Writer;
@@ -25,30 +25,67 @@ struct Reading {
     humidity: f32,
 }
 
-fn open_port(b: u32, t: u64) -> serialport::Result<Box<dyn serialport::SerialPort>> {
-    // let path = match e {
-    //     "windows" => "COM3",
-    //     "linux" => "/dev/ttyACM0",
-    //     _ => {
-    //         eprintln!("Failed to recognize OS");
-    //         std::process::exit(1);
-    //     }
-    // };
+#[derive(Debug)]
+struct FindPortError<'a> {
+    description: &'a str,
+}
 
-    println!("{:?}", serialport::available_ports());
+impl<'a> std::fmt::Display for FindPortError<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.description)
+    }
+}
 
-    let port_infos =
-        serialport::available_ports().map_or_else(|err| panic!("{err}"), |port_infos| port_infos);
-    let port_info = port_infos
-        .first()
-        .unwrap_or_else(|| panic!("no specified port name!"));
+impl<'a> std::error::Error for FindPortError<'a> {
+    fn description(&self) -> &str {
+        self.description
+    }
+}
 
-    serialport::new(&port_info.port_name, b)
-        .timeout(Duration::from_millis(t))
-        .flow_control(serialport::FlowControl::None)
-        .stop_bits(serialport::StopBits::One)
-        .parity(serialport::Parity::None)
-        .open()
+fn find_port() -> Result<String, Box<dyn Error>> {
+    let ports = serialport::available_ports();
+
+    match ports {
+        Ok(_ports) => {
+            for port in _ports {
+                if let UsbPort(UsbPortInfo {
+                    manufacturer: Some(m),
+                    ..
+                }) = port.port_type
+                {
+                    if m.as_str().contains("Arduino") {
+                        println!("found Arduino on port {:?}", port.port_name);
+
+                        return Ok(port.port_name);
+                    }
+                }
+            }
+
+            Err(Box::new(FindPortError {
+                description: "cannot find a working port",
+            }))
+        }
+        Err(e) => Err(Box::new(e)),
+    }
+}
+
+fn open_port(b: u32, t: u64) -> Result<Box<dyn serialport::SerialPort>, Box<dyn Error>> {
+    match find_port() {
+        Ok(path) => {
+            let port = serialport::new(path, b)
+                .timeout(Duration::from_millis(t))
+                .flow_control(serialport::FlowControl::None)
+                .stop_bits(serialport::StopBits::One)
+                .parity(serialport::Parity::None)
+                .open();
+
+            match port {
+                Ok(p) => Ok(p),
+                Err(e) => Err(Box::new(e)),
+            }
+        }
+        Err(e) => Err(e),
+    }
 }
 
 fn create_csv_writer(p: &str) -> Result<Writer<File>, Box<dyn Error>> {
@@ -159,18 +196,12 @@ fn process_data(port: &mut Box<dyn serialport::SerialPort>, wtr: &mut Writer<Fil
     }
 }
 
-pub struct SerialConfig {
-    baud_rate: u32,
-    timeout: u64,
-}
-
-pub fn start(baud_rate: u32, timeout: u64) {
-    let path = "./readings.csv";
-    let mut wtr = create_csv_writer(path)
+pub fn start(baudrate: u32, timeout: u64, path: String) {
+    let mut wtr = create_csv_writer(path.as_str())
         .unwrap_or_else(|err| panic!("cannot read file {path} with error: {err}"));
 
     loop {
-        match open_port(baud_rate, timeout) {
+        match open_port(baudrate, timeout) {
             Ok(mut port) => process_data(&mut port, &mut wtr),
             Err(e) => eprintln!("{e}"),
         }
