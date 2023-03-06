@@ -1,5 +1,7 @@
 use nom::InputIter;
-use serialport::{self, SerialPortType::UsbPort, UsbPortInfo};
+use serialport::{
+    self, DataBits, FlowControl, Parity, SerialPortType::UsbPort, StopBits, UsbPortInfo,
+};
 
 use csv;
 use csv::Writer;
@@ -73,11 +75,11 @@ fn open_port(b: u32, t: u64) -> Result<Box<dyn serialport::SerialPort>, Box<dyn 
     match find_port() {
         Ok(path) => {
             let port = serialport::new(path, b)
-                .flow_control(serialport::FlowControl::None)
-                .data_bits(serialport::DataBits::Eight)
-                .stop_bits(serialport::StopBits::One)
+                .flow_control(FlowControl::None)
+                .data_bits(DataBits::Eight)
+                .stop_bits(StopBits::One)
                 .timeout(Duration::from_millis(t))
-                .parity(serialport::Parity::None)
+                .parity(Parity::None)
                 .open();
 
             match port {
@@ -167,7 +169,8 @@ fn process_data(port: &mut Box<dyn serialport::SerialPort>, wtr: &mut Writer<Fil
         match port.read(&mut buf) {
             Ok(num) => {
                 if num > 0 {
-                    let slice = Slicer::new(Slicer::new(&buf).to_before(num));
+                    let bytes_read = Slicer::new(&buf).to_before(num);
+                    let slice = Slicer::new(bytes_read);
 
                     let marker_pos = slice.to_end().position(|b| b == b'$');
 
@@ -210,3 +213,7 @@ pub fn start(baudrate: u32, timeout: u64, path: String) {
         sleep(Duration::from_secs(1));
     }
 }
+
+// CREATE BINARY FOR THIS
+// CLI
+//

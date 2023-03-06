@@ -52,7 +52,7 @@ impl<'a, V> Slicer<'a, V, NoStartIndex> {
     }
 
     pub fn to_end(&self) -> &'a [V] {
-        &self.v[..]
+        self.v
     }
 }
 
