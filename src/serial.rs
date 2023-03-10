@@ -213,7 +213,3 @@ pub fn start(baudrate: u32, timeout: u64, path: String) {
         sleep(Duration::from_secs(1));
     }
 }
-
-// CREATE BINARY FOR THIS
-// CLI
-//
