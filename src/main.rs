@@ -10,7 +10,7 @@ struct Args {
     #[arg(short, long, default_value_t = 100000)]
     timeout: u64,
 
-    #[arg(short, long)]
+    #[arg(short, long, default_value_t = String::from("readings.csv"))]
     path: String,
 }
 

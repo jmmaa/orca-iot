@@ -16,7 +16,7 @@
 
 
 // timing
-float serialInterval = 5; // s // change this  for timing serial prints
+float serialInterval = 60; // s // change this  for timing serial prints
 float updateInterval = 1; // s // change this for timing value updates
 float LCDInterval = 300; // this is in millis // ms // change this for LCD interval
 unsigned long previousSerialSeconds = 0;
@@ -209,7 +209,7 @@ void updateValues() {
     // DHT11
     humidity = dht.readHumidity();
 
-    avgHumidity += humidity
+    avgHumidity += humidity;
 
 
     // JSNSR04T
