@@ -166,16 +166,25 @@ void printSerialValues() {
 
     Serial.print("windspeed:");
     Serial.print(avgWindspeed / serialInterval);
-    avgWindspeed = 0;
+    
 
 
     Serial.print("waterlevel:");
     Serial.print(avgDistance / serialInterval);
+    avgDistance = 0;
 
     Serial.print("humidity:");
     Serial.print(avgHumidity / serialInterval);
     
     Serial.print("$"); // marker
+
+    
+    
+    avgTemperature = 0;
+    avgPressure = 0;
+    avgWindspeed = 0;
+    avgDistance = 0;
+    avgHumidity = 0;
 }
 
 
