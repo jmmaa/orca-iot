@@ -4,6 +4,7 @@ O.R.C.A. or Ocean Risk Intensity Classification and Analysis, is an IoT-based ea
 
 ## Links
 - [Paper](https://github.com/jmmaa/orca-iot/blob/main/thesis.pdf)
+- [Model Demo](https://jmmaa-orca-site-main-um2qxa.streamlit.app/)
 
 ## Building from source
 
