@@ -1,6 +1,6 @@
 # ORCA
 
-O.R.C.A. or Ocean Risk Intensity Classification and Analysis, is an IoT-based early warning system for coastal areas powered with machine learning. This repository covers the IoT layer of the project. Check the [paper](https://github.com/jmmaa/orca-iot/blob/main/thesis.pdf) for additional information.
+O.R.C.A. or Ocean Risk Intensity Classification and Analysis, is an IoT-based early warning system for coastal areas powered with machine learning. This repository covers the IoT layer of the project. Check our thesis [paper](https://github.com/jmmaa/orca-iot/blob/main/thesis.pdf) for additional information.
 
 ## Download
 
